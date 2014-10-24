@@ -8,13 +8,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nullable;
 
+import com.beust.jcommander.internal.Maps;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
+import brooklyn.entity.basic.Attributes;
 import brooklyn.entity.basic.Entities;
+import brooklyn.entity.basic.SoftwareProcessImpl;
 import brooklyn.entity.java.JavaSoftwareProcessSshDriver;
 import brooklyn.entity.java.VanillaJavaAppImpl;
 import brooklyn.entity.java.VanillaJavaAppSshDriver;
@@ -31,8 +34,10 @@ import io.cloudsoft.ycsb.YCSBNodeImpl;
 public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements YCSBNodeDriver {
 
     AtomicBoolean currentRunningStatus = new AtomicBoolean();
+    public String ycsbCommand = "";
+    public String workloadDir = "";
 
-    public YCSBNodeSshDriver(VanillaJavaAppImpl entity, SshMachineLocation machine) {
+    public YCSBNodeSshDriver(SoftwareProcessImpl entity, SshMachineLocation machine) {
         super(entity, machine);
     }
 
@@ -65,13 +70,28 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     @Override
     public void customize() {
-        String ycsbHomeDir = Os.mergePaths(getRunDir(), "ycsb");
-        String saveAs = resolver.getFilename();
 
-        List<String> commands = ImmutableList.<String>builder()
-                .add(BashCommands.sudo("mkdir -p " + ycsbHomeDir))
-                .add(format("tar xvfz %s/%s -C %s --strip-components 1", getInstallDir(), saveAs, ycsbHomeDir))
-                .build();
+        String ycsbHomeDir = Os.mergePaths(getRunDir(), "ycsb-" + getVersion());
+        String saveAs = resolver.getFilename();
+        Map<String, String> copiedWorkloadFiles = Optional.fromNullable(entity.getConfig(YCSBNode.INSTALL_FILES)).or(Maps.<String, String>newHashMap());
+
+        ImmutableList.Builder<String> commandsBuilder = ImmutableList.<String>builder()
+                .add(format("cp %s/%s .", getInstallDir(), saveAs))
+                .add(format("tar xvfz %s", saveAs));
+
+        //if workload files uploaded copy them to the workloads folder.
+        if (!copiedWorkloadFiles.isEmpty()) {
+            for (String workloadFile : copiedWorkloadFiles.values()) {
+                commandsBuilder.add(format("cp %s %s/workloads", Os.mergePaths(getExpandedInstallDir(), workloadFile), ycsbHomeDir));
+            }
+        }
+
+        newScript(CUSTOMIZING)
+                .body.append(commandsBuilder.build())
+                .execute();
+
+        ycsbCommand = Os.mergePaths(getRunDir(), "ycsb-" + getVersion(), "bin", "ycsb");
+        workloadDir = Os.mergePaths(getRunDir(), "ycsb-" + getVersion(), "workloads");
     }
 
     @Override
@@ -81,23 +101,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .execute();
     }
 
-    public Integer getInsertStart() {
-        return entity.getAttribute(YCSBNode.INSERT_START);
-    }
-
-    public Integer getInsertCount() {
-        return entity.getAttribute(YCSBNode.INSERT_COUNT);
-    }
-
-    public Integer getRecordCount() {
-        return entity.getAttribute(YCSBNode.RECORD_COUNT);
-    }
-
-    public Integer getOperationsCount() {
-        return entity.getAttribute(YCSBNode.OPERATIONS_COUNT);
-    }
-
-    public String getHostnames() {
+    public String getDBHostnames() {
         Optional<List<String>> myHostnames = Optional.fromNullable(entity.getConfig(YCSBNode.DB_HOSTNAMES));
 
         //remove port section from the hostname
@@ -180,35 +184,56 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     private String getLoadCmd(String workload) {
 
         //String coreWorkloadClass = getEntity().getMainClass();
-        String insertStart = Integer.toString(getInsertStart());
-        String insertCount = Integer.toString(getInsertCount());
-        String hostnames = getHostnames();
-        String operationsCount = Integer.toString(getOperationsCount());
+        String hostnames = getDBHostnames();
+        String dbName = getDbName();
+        Integer target = getTarget();
+        Integer threads = getThreads();
+        Map<String, String> props = getProperties();
 
-        String recordcount = Integer.toString(getRecordCount());
+        StringBuilder loadcmd = new StringBuilder(format("%s load %s -s -target %s -threads %s -P %s/%s",
+                ycsbCommand, dbName, target, threads, workloadDir, workload));
 
+        if (!props.isEmpty()) {
+            for (String property : props.keySet()) {
+                loadcmd.append(format(" -p %s=%s", property, props.get(property)));
+            }
+        }
 
-        String loadcmd = String.format("java -cp \"lib/*\" %s " +
-                " -db " + getDB() + " -load -P lib/" +
-                workload + " -p insertstart=%s -p insertcount=%s -s -p recordcount=%s -threads 500 " +
-                " -p operationcount=%s -p hosts=%s | tee load-" + workload + ".dat"
-                , "com.yahoo.ycsb.Client", insertStart, insertCount, recordcount, operationsCount, hostnames);
+        loadcmd.append(format(" -p hosts=%s", hostnames));
 
-        return loadcmd;
+        return loadcmd.toString();
     }
 
     private String getRunCmd(String workload) {
 
-        String hostnames = getHostnames();
-        String operationsCount = Integer.toString(getOperationsCount());
+        //String coreWorkloadClass = getEntity().getMainClass();
+        String hostnames = getDBHostnames();
+        String dbName = getDbName();
+        Integer target = getTarget();
+        Integer threads = getThreads();
+        Map<String, String> props = getProperties();
 
+        StringBuilder runcmd = new StringBuilder(format("%s run %s -s -target %s -threads %s -P %s/%s",
+                ycsbCommand, dbName, target, threads, workloadDir, workload));
 
-        return String.format("java -cp \"lib/*\" %s " +
-                " -db " + getDB() + " -t " +
-                "-P lib/" + workload + " -s -threads 500" +
-                " -p operationcount=%s " +
-                " -p hosts=%s | tee transactions-" + workload + ".dat"
-                , "com.yahoo.ycsb.Client", operationsCount, hostnames);
+        if (!props.isEmpty()) {
+            for (String property : props.keySet()) {
+                runcmd.append(format(" -p %s=%s", property, props.get(property)));
+            }
+        }
+
+        runcmd.append(format(" -p hosts=%s", hostnames));
+
+        return runcmd.toString();
+
+//        String hostnames = getDBHostnames();
+//
+//        return String.format("java -cp \"lib/*\" %s " +
+//                " -db " + getDB() + " -t " +
+//                "-P lib/" + workload + " -s -threads 500" +
+//                " -p operationcount=%s " +
+//                " -p hosts=%s | tee transactions-" + workload + ".dat"
+//                , "com.yahoo.ycsb.Client", operationsCount, hostnames);
     }
 
     private String getDB() {
@@ -224,5 +249,28 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         DynamicTasks.queueIfPossible(SshEffectorTasks.fetch(format("transactions-%s.dat", workload)).machine(getMachine()).newTask());
     }
 
+    private Integer getThreads() {
+        return entity.getConfig(YCSBNode.THREADS);
+    }
 
+    private Integer getTarget() {
+        return entity.getConfig(YCSBNode.TARGET);
+    }
+
+    private String getDbName() {
+        return entity.getConfig(YCSBNode.DB_TO_BENCHMARK);
+    }
+
+    private Map<String, String> getProperties() {
+        return entity.getConfig(YCSBNode.YCSB_PROPERTIES);
+    }
+
+    public void loadWorkload(String workload) {
+        if (entity.getAttribute(Attributes.SERVICE_UP)) {
+
+            newScript("loadingWorkload")
+                    .body.append(getLoadCmd(workload))
+                    .execute();
+        }
+    }
 }

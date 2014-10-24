@@ -4,6 +4,8 @@ import brooklyn.entity.basic.SoftwareProcessDriver;
 
 public interface YCSBNodeDriver extends SoftwareProcessDriver {
 
-    void runWorkload(String commands);
+    void runWorkload(String workload);
+
+    void loadWorkload(String workload);
 
 }

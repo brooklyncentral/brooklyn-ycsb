@@ -1,7 +1,9 @@
 package io.cloudsoft.ycsb;
 
 import java.util.List;
+import java.util.Map;
 
+import com.beust.jcommander.internal.Maps;
 import com.google.common.collect.Lists;
 
 import brooklyn.entity.basic.AbstractApplication;
@@ -17,7 +19,17 @@ public class YCSBTest extends AbstractApplication {
 
     @Override
     public void init() {
-        addChild(EntitySpec.create(YCSBNode.class));
+        List<String> hosts = Lists.newArrayList("test01", "test02");
+        List<String> workloadFiles = Lists.newArrayList("classpath://workload-testa", "classpath://workload-testb");
+
+        Map<String, String> props = Maps.newHashMap();
+        props.put("recordcount", "100000");
+        props.put("measurementtype", "timeseries");
+
+        addChild(EntitySpec.create(YCSBNode.class)
+                .configure(YCSBNode.DB_HOSTNAMES, hosts)
+                .configure(YCSBNode.YCSB_PROPERTIES, props)
+                .configure(YCSBNode.WORKLOAD_FILES, workloadFiles));
     }
 
     public static void main(String[] argv) {

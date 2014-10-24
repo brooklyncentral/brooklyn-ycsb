@@ -1,34 +1,33 @@
 package io.cloudsoft.ycsb;
 
 import java.util.List;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Optional;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 
+import brooklyn.entity.annotation.EffectorParam;
 import brooklyn.entity.basic.SoftwareProcessImpl;
+import brooklyn.util.os.Os;
 
 public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
-
-    private static final Logger log = LoggerFactory.getLogger(YCSBNodeImpl.class);
-    private final List<Integer> outputLoadIds = Lists.newArrayList();
-    private final List<Integer> outputTransactionIds = Lists.newArrayList();
 
     @Override
     public void init() {
         super.init();
-    }
 
+        List<String> workloadFiles = getConfig(WORKLOAD_FILES);
+        if (!workloadFiles.isEmpty()) {
+            Map<String, String> filesToBeCopied = Maps.<String, String>newHashMap();
 
-    public void runWorkloadEffector(String workload) {
-
-        if (Optional.fromNullable(getConfig(DB_HOSTNAMES)).isPresent()) {
-            YCSBNodeDriver driver = getDriver();
-            driver.runWorkload(workload);
-        } else {
-            throw new IllegalArgumentException("DB Hostnames to benchmark are not ready");
+            for (String localFile : workloadFiles) {
+                filesToBeCopied.put(localFile, Os.mergePaths("workloads", localFile.substring(localFile.lastIndexOf('/') + 1)));
+            }
+            setConfig(INSTALL_FILES, filesToBeCopied);
         }
     }
 
@@ -46,6 +45,25 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
     public void connectSensors() {
         connectedSensors = true;
         connectServiceUpIsRunning();
+    }
 
+    @Override
+    public void runWorkload(String workload) {
+        if (Optional.fromNullable(getConfig(DB_HOSTNAMES)).isPresent()) {
+            YCSBNodeDriver driver = getDriver();
+            driver.runWorkload(workload);
+        } else {
+            throw new IllegalArgumentException("DB Hostnames to benchmark are not ready");
+        }
+    }
+
+    @Override
+    public void loadWorkload(String workload) {
+        if (Optional.fromNullable(getConfig(DB_HOSTNAMES)).isPresent()) {
+            YCSBNodeDriver driver = getDriver();
+            driver.loadWorkload(workload);
+        } else {
+            throw new IllegalArgumentException("DB Hostnames to benchmark are not ready");
+        }
     }
 }
