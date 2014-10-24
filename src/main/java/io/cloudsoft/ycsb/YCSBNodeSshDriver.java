@@ -33,7 +33,6 @@ import io.cloudsoft.ycsb.YCSBNodeImpl;
 
 public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements YCSBNodeDriver {
 
-    AtomicBoolean currentRunningStatus = new AtomicBoolean();
     public String ycsbCommand = "";
     public String workloadDir = "";
 
@@ -105,7 +104,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         Optional<List<String>> myHostnames = Optional.fromNullable(entity.getConfig(YCSBNode.DB_HOSTNAMES));
 
         //remove port section from the hostname
-
         if (myHostnames.isPresent()) {
 
             List<String> dbHostnamesList = myHostnames.get();
@@ -154,31 +152,12 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     public void runWorkload(String workload) {
 
-        if (!currentRunningStatus.getAndSet(true)) {
+        if (entity.getAttribute(Attributes.SERVICE_UP)) {
 
-            //copy the workload file to the YCSBClient
-            String localWorkloadFile = "classpath://" + workload;
-            String remoteWorkloadFile = Os.mergePaths(getRunDir(), "lib", workload);
-            copyResource(localWorkloadFile, remoteWorkloadFile);
-
-            log.info("loading script with workload: {}", workload);
-            newScript("Loading the workload")
-                    .failOnNonZeroResultCode()
-                    .body.append(getLoadCmd(workload))
-                    .execute();
-
-
-            log.info("running the transactions on workload: {}", workload);
-            if (newScript("Running the workload")
-                    .failOnNonZeroResultCode()
+            newScript("runningWorkload")
                     .body.append(getRunCmd(workload))
-                    .execute() == 0) {
-                currentRunningStatus.set(false);
-            }
-        } else {
-            log.warn("Currently running workload: {}", workload);
+                    .execute();
         }
-
     }
 
     private String getLoadCmd(String workload) {
@@ -225,15 +204,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         runcmd.append(format(" -p hosts=%s", hostnames));
 
         return runcmd.toString();
-
-//        String hostnames = getDBHostnames();
-//
-//        return String.format("java -cp \"lib/*\" %s " +
-//                " -db " + getDB() + " -t " +
-//                "-P lib/" + workload + " -s -threads 500" +
-//                " -p operationcount=%s " +
-//                " -p hosts=%s | tee transactions-" + workload + ".dat"
-//                , "com.yahoo.ycsb.Client", operationsCount, hostnames);
     }
 
     private String getDB() {
