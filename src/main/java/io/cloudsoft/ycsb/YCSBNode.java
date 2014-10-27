@@ -2,6 +2,7 @@ package io.cloudsoft.ycsb;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.beust.jcommander.internal.Lists;
 import com.google.common.collect.Maps;
@@ -30,21 +31,34 @@ public interface YCSBNode extends SoftwareProcess {
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(SoftwareProcess.SUGGESTED_VERSION,
             "0.1.4");
 
+    @SetFromFlag("dbHostnames")
     ConfigKey<List<String>> DB_HOSTNAMES = ConfigKeys.newConfigKey(new TypeToken<List<String>>() {
     }, "ycsb.dbHostnames", "list of all hostnames to benchmark");
+
+    @SetFromFlag("dbToBenchmark")
     ConfigKey<String> DB_TO_BENCHMARK = ConfigKeys.newStringConfigKey("ycsb.db_to_benchmark", "name of the db to benchmark", "basic");
+
+    @SetFromFlag("threads")
     ConfigKey<Integer> THREADS = ConfigKeys.newIntegerConfigKey("ycsb.threads", "the number of client threads", 1);
+
+    @SetFromFlag("target")
     ConfigKey<Integer> TARGET = ConfigKeys.newIntegerConfigKey("ycsb.target", "Target ops/sec (default: unthrottled)", 0);
 
+    @SetFromFlag("ycsbProperties")
     ConfigKey<Map<String, String>> YCSB_PROPERTIES = ConfigKeys.newConfigKey(new TypeToken<Map<String, String>>() {
     }, "ycsb.properties", "any additional YCSB properties to use", Maps.<String, String>newHashMap());
+
+    AttributeSensor<String> YCSB_LOGS_PATH= Sensors.newStringSensor("ycsb.logsPath", "the path to fetch the output files to");
+    AttributeSensor<AtomicLong> YCSB_LOGS_IDENTIFIER = Sensors.newSensor(new TypeToken<AtomicLong>() {
+    }, "ycsb.logsIdentifier", "An incrementing id to number load/run ycsb benchmarking logs");
+
+    @SetFromFlag("workloadFiles")
+    ConfigKey<List<String>> WORKLOAD_FILES = ConfigKeys.newConfigKey(new TypeToken<List<String>>() {
+    }, "ycsb.workloadFiles", "workload files to be copied to the machine", Lists.<String>newArrayList());
 
     MethodEffector<Void> RUN_WORKLOAD = new MethodEffector<Void>(YCSBNode.class, "runWorkload");
     MethodEffector<Void> LOAD_WORKLOAD = new MethodEffector<Void>(YCSBNode.class, "loadWorkload");
 
-    ConfigKey<String> LOCAL_OUTPUT_PATH = ConfigKeys.newStringConfigKey("ycsb.localOutputPath", "the path to fetch the output files to");
-    ConfigKey<List<String>> WORKLOAD_FILES = ConfigKeys.newConfigKey(new TypeToken<List<String>>() {
-    }, "ycsb.workloadFiles", "workload files to be copied to the machine", Lists.<String>newArrayList());
 
     @Effector(description = "Runs a workload on the database")
     void runWorkload(@EffectorParam(name = "run workload", description = "The name of the workload file") String workload);

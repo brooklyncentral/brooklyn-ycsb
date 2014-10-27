@@ -2,6 +2,7 @@ package io.cloudsoft.ycsb;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,8 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
             }
             setConfig(INSTALL_FILES, filesToBeCopied);
         }
+
+        setAttribute(YCSB_LOGS_IDENTIFIER, new AtomicLong(0));
     }
 
     @Override

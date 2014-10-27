@@ -5,6 +5,7 @@ import static java.lang.String.format;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
 
@@ -35,6 +36,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     public String ycsbCommand = "";
     public String workloadDir = "";
+    public String logsDir = "";
 
     public YCSBNodeSshDriver(SoftwareProcessImpl entity, SshMachineLocation machine) {
         super(entity, machine);
@@ -76,7 +78,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
         ImmutableList.Builder<String> commandsBuilder = ImmutableList.<String>builder()
                 .add(format("cp %s/%s .", getInstallDir(), saveAs))
-                .add(format("tar xvfz %s", saveAs));
+                .add(format("tar xvfz %s", saveAs))
+                .add(format("mkdir -p %s/logs", ycsbHomeDir));
 
         //if workload files uploaded copy them to the workloads folder.
         if (!copiedWorkloadFiles.isEmpty()) {
@@ -89,8 +92,11 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .body.append(commandsBuilder.build())
                 .execute();
 
-        ycsbCommand = Os.mergePaths(getRunDir(), "ycsb-" + getVersion(), "bin", "ycsb");
-        workloadDir = Os.mergePaths(getRunDir(), "ycsb-" + getVersion(), "workloads");
+        ycsbCommand = Os.mergePaths(ycsbHomeDir, "bin", "ycsb");
+        workloadDir = Os.mergePaths(ycsbHomeDir, "workloads");
+        logsDir = Os.mergePaths(ycsbHomeDir, "logs");
+        entity.setAttribute(YCSBNode.YCSB_LOGS_PATH, logsDir);
+
     }
 
     @Override
@@ -132,7 +138,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     @Override
     public void stop() {
-
     }
 
     @Override
@@ -150,12 +155,25 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         return super.getCustomJavaSystemProperties();
     }
 
+    public void loadWorkload(String workload) {
+        if (entity.getAttribute(Attributes.SERVICE_UP)) {
+
+            long logId = getLogId().getAndIncrement();
+
+            newScript("loadingWorkload")
+                    .body.append(format("%s | tee %s/load-%s-%s.out", getLoadCmd(workload), logsDir, logId, workload))
+                    .execute();
+        }
+    }
+
     public void runWorkload(String workload) {
 
         if (entity.getAttribute(Attributes.SERVICE_UP)) {
 
+            long logId = getLogId().getAndIncrement();
+
             newScript("runningWorkload")
-                    .body.append(getRunCmd(workload))
+                    .body.append(format("%s | tee %s/run-%s-%s.out", getRunCmd(workload), logsDir, logId, workload))
                     .execute();
         }
     }
@@ -185,7 +203,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     private String getRunCmd(String workload) {
 
-        //String coreWorkloadClass = getEntity().getMainClass();
         String hostnames = getDBHostnames();
         String dbName = getDbName();
         Integer target = getTarget();
@@ -210,15 +227,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         return entity.getConfig(YCSBNode.DB_TO_BENCHMARK);
     }
 
-    public void fetchOutputs(String workload) {
-
-        String localOutPutPath = entity.getConfig(YCSBNode.LOCAL_OUTPUT_PATH);
-        log.info("Copying load and run output files to {} for workload: {}", localOutPutPath, workload);
-
-        DynamicTasks.queueIfPossible(SshEffectorTasks.fetch(format("load-%s.dat", workload)).machine(getMachine()).newTask());
-        DynamicTasks.queueIfPossible(SshEffectorTasks.fetch(format("transactions-%s.dat", workload)).machine(getMachine()).newTask());
-    }
-
     private Integer getThreads() {
         return entity.getConfig(YCSBNode.THREADS);
     }
@@ -231,16 +239,11 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         return entity.getConfig(YCSBNode.DB_TO_BENCHMARK);
     }
 
-    private Map<String, String> getProperties() {
-        return entity.getConfig(YCSBNode.YCSB_PROPERTIES);
+    private AtomicLong getLogId() {
+        return entity.getAttribute(YCSBNode.YCSB_LOGS_IDENTIFIER);
     }
 
-    public void loadWorkload(String workload) {
-        if (entity.getAttribute(Attributes.SERVICE_UP)) {
-
-            newScript("loadingWorkload")
-                    .body.append(getLoadCmd(workload))
-                    .execute();
-        }
+    private Map<String, String> getProperties() {
+        return entity.getConfig(YCSBNode.YCSB_PROPERTIES);
     }
 }
