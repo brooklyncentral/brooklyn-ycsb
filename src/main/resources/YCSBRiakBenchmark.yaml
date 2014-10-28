@@ -1,0 +1,24 @@
+name: Riak Cluster benchmarking with YCSB
+
+location: jclouds:softlayer:ams01
+
+services:
+- type: brooklyn.entity.nosql.riak.RiakCluster
+  initialSize: 2
+  id: riakCluster
+  brooklyn.config:
+    install.version: 2.0.0
+    provisioning.properties:
+      osFamily: centos
+
+- serviceType: io.cloudsoft.ycsb.YCSBNode
+  name: YCSB Riak Benchmarking Node
+  brooklyn.config:
+    dbToBenchmark: "riak"
+    downloadUrl: "http://developers.cloudsoftcorp.com/brooklyn/repository/YcsbNode/0.1.4/ycsb-0.1.4-riak-driver.tar.gz"
+    dbHostnamesString: $brooklyn:component("riakCluster").attributeWhenReady("riak.cluster.nodeList")
+    ycsbProperties:
+      recordcount: 100000
+      measurementtype: timeseries
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]
+

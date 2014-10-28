@@ -1,4 +1,4 @@
-package io.cloudsoft.ycsb;
+package io.cloudsoft.ycsb.examples;
 
 import java.util.List;
 import java.util.Map;
@@ -10,6 +10,8 @@ import org.slf4j.LoggerFactory;
 import com.beust.jcommander.internal.Maps;
 import com.google.common.collect.Lists;
 
+import brooklyn.catalog.Catalog;
+import brooklyn.catalog.CatalogConfig;
 import brooklyn.config.ConfigKey;
 import brooklyn.entity.basic.AbstractApplication;
 import brooklyn.entity.basic.ConfigKeys;
@@ -25,20 +27,22 @@ import brooklyn.event.basic.DependentConfiguration;
 import brooklyn.event.basic.Sensors;
 import brooklyn.launcher.BrooklynLauncher;
 import brooklyn.util.CommandLineUtil;
+import io.cloudsoft.ycsb.YCSBNode;
 
-public class YCSBCassandraBenchmark extends AbstractApplication {
+@Catalog(name = "YCSB Cassandra Cluster Benchmark", description = "A YCSB entity to benchmark a Cassandra Cluster")
+public class YCSBCassandraBenchmarkApp extends AbstractApplication {
 
-    public static final AttributeSensor<Boolean> initScriptExecuted = Sensors.newBooleanSensor("scriptExecuted");
-    public static final String DEFAULT_LOCATION_SPEC = "aws-ec2:us-east-1";
-    public static final ConfigKey<Integer> NUM_AVAILABILITY_ZONES = ConfigKeys.newConfigKey(
-            "cassandra.cluster.numAvailabilityZones", "Number of availability zones to spread the cluster across", 1);
+    @CatalogConfig(label = "The initial size of the Cassandra cluster to be benchmarked", priority = 1)
     public static final ConfigKey<Integer> CASSANDRA_CLUSTER_SIZE = ConfigKeys.newConfigKey(
             "cassandra.cluster.initialSize", "Initial size of the Cassandra cluster", 2);
-    private static final Logger log = LoggerFactory.getLogger(YCSBCassandraBenchmark.class);
+
+    public static final AttributeSensor<Boolean> initScriptExecuted = Sensors.newBooleanSensor("scriptExecuted");
+    public static final String DEFAULT_LOCATION_SPEC = "jclouds:aws-ec2:us-east-1";
+    private static final Logger log = LoggerFactory.getLogger(YCSBCassandraBenchmarkApp.class);
     private static final AtomicBoolean scriptBoolean = new AtomicBoolean();
     private CassandraDatacenter cassandraCluster;
 
-    public void init() {
+    public void initApp() {
         //initialize the Cassandra Cluster
         cassandraCluster = addChild(EntitySpec.create(CassandraDatacenter.class)
                 .configure(CassandraDatacenter.CLUSTER_NAME, "Brooklyn")
@@ -56,7 +60,7 @@ public class YCSBCassandraBenchmark extends AbstractApplication {
                         CassandraNode anyNode = (CassandraNode) event.getSource();
                         log.info("Creating keyspace 'usertable' with column family 'data' on Node {}", event.getSource().getId());
 
-                        Entities.invokeEffectorWithArgs(YCSBCassandraBenchmark.this, anyNode, CassandraNode.EXECUTE_SCRIPT, "create keyspace usertable with placement_strategy = " +
+                        Entities.invokeEffectorWithArgs(YCSBCassandraBenchmarkApp.this, anyNode, CassandraNode.EXECUTE_SCRIPT, "create keyspace usertable with placement_strategy = " +
                                 "'org.apache.cassandra.locator.SimpleStrategy' and strategy_options = {replication_factor:3};" +
                                 "\nuse usertable;" +
                                 "\ncreate column family data;");
@@ -77,7 +81,7 @@ public class YCSBCassandraBenchmark extends AbstractApplication {
 
         addChild(EntitySpec.create(YCSBNode.class)
                 .configure(YCSBNode.DB_TO_BENCHMARK, "cassandra-10")
-                .configure(YCSBNode.DB_HOSTNAMES, DependentConfiguration.attributeWhenReady(cassandraCluster, CassandraDatacenter.CASSANDRA_CLUSTER_NODES))
+                .configure(YCSBNode.DB_HOSTNAMES_LIST, DependentConfiguration.attributeWhenReady(cassandraCluster, CassandraDatacenter.CASSANDRA_CLUSTER_NODES))
                 .configure(YCSBNode.YCSB_PROPERTIES, props)
                 .configure(YCSBNode.WORKLOAD_FILES, workloadFiles));
     }
@@ -88,7 +92,7 @@ public class YCSBCassandraBenchmark extends AbstractApplication {
         String location = CommandLineUtil.getCommandLineOption(args, "--location", DEFAULT_LOCATION_SPEC);
 
         BrooklynLauncher launcher = BrooklynLauncher.newInstance()
-                .application(EntitySpec.create(StartableApplication.class, YCSBCassandraBenchmark.class)
+                .application(EntitySpec.create(StartableApplication.class, YCSBCassandraBenchmarkApp.class)
                         .displayName("YCSB Cassandra Benchmark Test"))
                 .webconsolePort(port)
                 .location(location)

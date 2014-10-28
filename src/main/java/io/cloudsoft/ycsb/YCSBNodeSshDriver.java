@@ -4,7 +4,7 @@ import static java.lang.String.format;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
@@ -20,17 +20,10 @@ import brooklyn.entity.basic.Attributes;
 import brooklyn.entity.basic.Entities;
 import brooklyn.entity.basic.SoftwareProcessImpl;
 import brooklyn.entity.java.JavaSoftwareProcessSshDriver;
-import brooklyn.entity.java.VanillaJavaAppImpl;
-import brooklyn.entity.java.VanillaJavaAppSshDriver;
-import brooklyn.entity.software.SshEffectorTasks;
 import brooklyn.location.basic.SshMachineLocation;
 import brooklyn.util.os.Os;
 import brooklyn.util.ssh.BashCommands;
-import brooklyn.util.task.DynamicTasks;
 import brooklyn.util.text.Strings;
-import io.cloudsoft.ycsb.YCSBNode;
-import io.cloudsoft.ycsb.YCSBNodeDriver;
-import io.cloudsoft.ycsb.YCSBNodeImpl;
 
 public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements YCSBNodeDriver {
 
@@ -77,8 +70,9 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         Map<String, String> copiedWorkloadFiles = Optional.fromNullable(entity.getConfig(YCSBNode.INSTALL_FILES)).or(Maps.<String, String>newHashMap());
 
         ImmutableList.Builder<String> commandsBuilder = ImmutableList.<String>builder()
+                .add(format("mkdir -p %s", ycsbHomeDir))
                 .add(format("cp %s/%s .", getInstallDir(), saveAs))
-                .add(format("tar xvfz %s", saveAs))
+                .add(format("tar xvfz %s -C %s --strip-components 1", saveAs, ycsbHomeDir))
                 .add(format("mkdir -p %s/logs", ycsbHomeDir));
 
         //if workload files uploaded copy them to the workloads folder.
@@ -107,12 +101,13 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     }
 
     public String getDBHostnames() {
-        Optional<List<String>> myHostnames = Optional.fromNullable(entity.getConfig(YCSBNode.DB_HOSTNAMES));
+        Optional<List<String>> myHostnamesList = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_LIST));
+        Optional<String> myHostnamesString = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_STRING));
 
         //remove port section from the hostname
-        if (myHostnames.isPresent()) {
+        if (myHostnamesList.isPresent()) {
 
-            List<String> dbHostnamesList = myHostnames.get();
+            List<String> dbHostnamesList = myHostnamesList.get();
             return Strings.join(Lists.newArrayList(Iterables.transform(dbHostnamesList, new Function<String, String>() {
 
                 @Nullable
@@ -127,6 +122,26 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 }
             })), ",");
         } else {
+            if (myHostnamesString.isPresent()) {
+                String dbHostnamesString = myHostnamesString.get();
+
+                if (dbHostnamesString.contains(":")) {
+                    StringTokenizer tokenizer = new StringTokenizer(dbHostnamesString, ",");
+                    StringBuilder hostsWithoutPorts = new StringBuilder();
+
+                    while (tokenizer.hasMoreTokens()) {
+                        String singleHost = tokenizer.nextToken();
+                        if (tokenizer.hasMoreTokens()) {
+                            hostsWithoutPorts.append(singleHost.substring(0, singleHost.lastIndexOf(":")) + ",");
+                        } else {
+                            hostsWithoutPorts.append(singleHost.substring(0, singleHost.lastIndexOf(":")));
+                        }
+                    }
+                    return hostsWithoutPorts.toString();
+                } else {
+                    return dbHostnamesString;
+                }
+            }
             return "";
         }
     }

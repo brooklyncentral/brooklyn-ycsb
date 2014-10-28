@@ -1,18 +1,16 @@
 package io.cloudsoft.ycsb;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.base.Optional;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
-import brooklyn.entity.annotation.EffectorParam;
 import brooklyn.entity.basic.SoftwareProcessImpl;
+import brooklyn.event.feed.ConfigToAttributes;
+import brooklyn.location.Location;
 import brooklyn.util.os.Os;
 
 public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
@@ -51,8 +49,16 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
     }
 
     @Override
+    protected void doStart(Collection<? extends Location> locations) {
+        super.doStart(locations);
+
+        ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_LIST);
+        ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_STRING);
+    }
+
+    @Override
     public void runWorkload(String workload) {
-        if (Optional.fromNullable(getConfig(DB_HOSTNAMES)).isPresent()) {
+        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() || Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
             YCSBNodeDriver driver = getDriver();
             driver.runWorkload(workload);
         } else {
@@ -62,7 +68,7 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
 
     @Override
     public void loadWorkload(String workload) {
-        if (Optional.fromNullable(getConfig(DB_HOSTNAMES)).isPresent()) {
+        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() || Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
             YCSBNodeDriver driver = getDriver();
             driver.loadWorkload(workload);
         } else {
