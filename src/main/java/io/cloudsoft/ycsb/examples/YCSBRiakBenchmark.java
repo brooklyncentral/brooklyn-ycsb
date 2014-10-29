@@ -38,7 +38,7 @@ public class YCSBRiakBenchmark extends AbstractApplication {
 
         List<String> workloadFiles = Lists.newArrayList("classpath://workload-testa", "classpath://workload-testb");
 
-        Map<String, String> props = Maps.newHashMap();
+        Map<String, Object> props = Maps.newHashMap();
         props.put("recordcount", "100000");
         props.put("measurementtype", "timeseries");
 

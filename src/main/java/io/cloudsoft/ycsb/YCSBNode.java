@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.beust.jcommander.internal.Lists;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.reflect.TypeToken;
 
@@ -17,6 +18,7 @@ import brooklyn.entity.basic.SoftwareProcess;
 import brooklyn.entity.proxying.ImplementedBy;
 import brooklyn.event.AttributeSensor;
 import brooklyn.event.basic.BasicAttributeSensorAndConfigKey;
+import brooklyn.event.basic.MapConfigKey;
 import brooklyn.event.basic.Sensors;
 import brooklyn.util.flags.SetFromFlag;
 
@@ -30,6 +32,15 @@ public interface YCSBNode extends SoftwareProcess {
     @SetFromFlag("version")
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(SoftwareProcess.SUGGESTED_VERSION,
             "0.1.4");
+
+    @SetFromFlag("downloadAddonUrls")
+    BasicAttributeSensorAndConfigKey<Map<String, String>> DOWNLOAD_ADDON_URLS = new BasicAttributeSensorAndConfigKey<Map<String, String>>(
+            SoftwareProcess.DOWNLOAD_ADDON_URLS, ImmutableMap.of(
+            "mysqlClient", "http://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-java-${addonversion}.tar.gz"));
+
+    @SetFromFlag("mysqlClientVersion")
+    ConfigKey<String> MSYQL_CLIENT_VERSION = ConfigKeys.newStringConfigKey(
+            "mysql.client.version", "Version of mysql Java client to be installed, if required", "5.1.33");
 
     @SetFromFlag("dbHostnamesList")
     BasicAttributeSensorAndConfigKey<List<String>> DB_HOSTNAMES_LIST = new BasicAttributeSensorAndConfigKey<List<String>> (new TypeToken<List<String>>() { }, "ycsb.dbHostnamesList", "List of all hostnames to benchmark");
@@ -47,7 +58,7 @@ public interface YCSBNode extends SoftwareProcess {
     ConfigKey<Integer> TARGET = ConfigKeys.newIntegerConfigKey("ycsb.target", "Target ops/sec (default: unthrottled)", 0);
 
     @SetFromFlag("ycsbProperties")
-    ConfigKey<Map<String, String>> YCSB_PROPERTIES = ConfigKeys.newConfigKey(new TypeToken<Map<String, String>>() { }, "ycsb.properties", "any additional YCSB properties to use", Maps.<String, String>newHashMap());
+    MapConfigKey<Object> YCSB_PROPERTIES = new MapConfigKey<Object>(Object.class,"ycsb.properties", "any additional YCSB properties to use");
 
     AttributeSensor<String> YCSB_LOGS_PATH = Sensors.newStringSensor("ycsb.logsPath", "The path for writing run/load benchmarking output logs");
     AttributeSensor<AtomicLong> YCSB_LOGS_IDENTIFIER = Sensors.newSensor(AtomicLong.class, "ycsb.logsIdentifier", "An incrementing id to number load/run ycsb benchmarking logs");

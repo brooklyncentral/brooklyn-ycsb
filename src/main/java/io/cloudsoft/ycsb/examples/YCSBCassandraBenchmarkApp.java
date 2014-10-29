@@ -72,7 +72,7 @@ public class YCSBCassandraBenchmarkApp extends AbstractApplication {
 
         //create the YCSB client to benchmark the cassandra cluster.
         //add ycsb properties
-        Map<String, String> props = Maps.newHashMap();
+        Map<String, Object> props = Maps.newHashMap();
         props.put("recordcount", "100000");
         props.put("measurementtype", "timeseries");
 

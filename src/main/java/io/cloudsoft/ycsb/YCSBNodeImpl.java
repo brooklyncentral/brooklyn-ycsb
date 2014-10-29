@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.base.Optional;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 import brooklyn.entity.basic.SoftwareProcessImpl;
@@ -40,6 +41,21 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
     @Override
     public YCSBNodeDriver getDriver() {
         return (YCSBNodeDriver) super.getDriver();
+    }
+
+    @Override
+    protected void preStart() {
+        Preconditions.checkNotNull(getConfig(DB_TO_BENCHMARK),"The DB type to benchmark is not specified");
+
+        if (getConfig(DB_TO_BENCHMARK).equals("jdbc"))
+        {
+            Map<String,Object> props = getConfig(YCSB_PROPERTIES);
+            Preconditions.checkArgument(!props.isEmpty(),"YCSB JDBC properties should be set when benchmarking through JDBC");
+            Preconditions.checkArgument(props.containsKey("db.driver"));
+            Preconditions.checkArgument(props.containsKey("db.url"));
+            Preconditions.checkArgument(props.containsKey("db.user"));
+            Preconditions.checkArgument(props.containsKey("db.passwd"));
+        }
     }
 
     @Override

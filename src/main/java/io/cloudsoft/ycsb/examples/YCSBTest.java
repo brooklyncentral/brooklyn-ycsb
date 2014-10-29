@@ -25,14 +25,14 @@ public class YCSBTest extends AbstractApplication {
         List<String> hosts = Lists.newArrayList("test01", "test02");
         List<String> workloadFiles = Lists.newArrayList("classpath://workload-testa", "classpath://workload-testb");
 
-        Map<String, String> props = Maps.newHashMap();
+        Map<String, Object> props = Maps.newHashMap();
         props.put("recordcount", "100000");
         props.put("measurementtype", "timeseries");
 
-        addChild(EntitySpec.create(YCSBNode.class)
-                .configure(YCSBNode.DB_HOSTNAMES_LIST, hosts)
-                .configure(YCSBNode.YCSB_PROPERTIES, props)
-                .configure(YCSBNode.WORKLOAD_FILES, workloadFiles));
+//        addChild(EntitySpec.create(YCSBNode.class)
+//                .configure(YCSBNode.DB_HOSTNAMES_LIST, hosts)
+//                .configure(YCSBNode.YCSB_PROPERTIES, props)
+//                .configure(YCSBNode.WORKLOAD_FILES, workloadFiles));
     }
 
     public static void main(String[] argv) {

@@ -13,12 +13,15 @@ import com.beust.jcommander.internal.Maps;
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import brooklyn.entity.basic.Attributes;
 import brooklyn.entity.basic.Entities;
+import brooklyn.entity.basic.EntityInternal;
 import brooklyn.entity.basic.SoftwareProcessImpl;
+import brooklyn.entity.drivers.downloads.DownloadResolver;
 import brooklyn.entity.java.JavaSoftwareProcessSshDriver;
 import brooklyn.location.basic.SshMachineLocation;
 import brooklyn.util.os.Os;
@@ -30,6 +33,9 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     public String ycsbCommand = "";
     public String workloadDir = "";
     public String logsDir = "";
+    private boolean mySqlClientInstalled = false;
+    private String saveAs = null;
+    private String mySqlClientSaveAs = null;
 
     public YCSBNodeSshDriver(SoftwareProcessImpl entity, SshMachineLocation machine) {
         super(entity, machine);
@@ -50,15 +56,31 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     @Override
     public void install() {
         List<String> urls = resolver.getTargets();
-        String saveAs = resolver.getFilename();
+        saveAs = resolver.getFilename();
 
-        List<String> commands = ImmutableList.<String>builder()
+        ImmutableList.Builder<String> cmdsBuilder = ImmutableList.<String>builder()
                 .add(BashCommands.INSTALL_TAR)
-                .addAll(BashCommands.commandsToDownloadUrlsAs(urls, saveAs))
-                .build();
+                .addAll(BashCommands.commandsToDownloadUrlsAs(urls, saveAs));
+
+
+        //download the connectorJ (MySQL JDBC client) if MySQL is being benchmarked.
+        if (entity.getConfig(YCSBNode.DB_TO_BENCHMARK).equals("jdbc") &&
+                entity.getConfig(YCSBNode.YCSB_PROPERTIES).containsKey("db.driver") &&
+                String.valueOf(entity.getConfig(YCSBNode.YCSB_PROPERTIES).get("db.driver")).equals("com.mysql.jdbc.Driver")) {
+            String mySqlClientVersion = entity.getConfig(YCSBNode.MSYQL_CLIENT_VERSION);
+
+            DownloadResolver mySqlClientResolver = ((EntityInternal) entity).getManagementContext().getEntityDownloadsManager()
+                    .newDownloader(this, "mysqlClient", ImmutableMap.of("addonversion", mySqlClientVersion));
+
+            List<String> mySqlClientUrls = mySqlClientResolver.getTargets();
+            mySqlClientSaveAs = mySqlClientResolver.getFilename();
+            cmdsBuilder.addAll(BashCommands.commandsToDownloadUrlsAs(mySqlClientUrls, mySqlClientSaveAs));
+            mySqlClientInstalled = true;
+        }
+
 
         newScript(INSTALLING)
-                .body.append(commands)
+                .body.append(cmdsBuilder.build())
                 .execute();
     }
 
@@ -66,7 +88,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     public void customize() {
 
         String ycsbHomeDir = Os.mergePaths(getRunDir(), "ycsb-" + getVersion());
-        String saveAs = resolver.getFilename();
+
         Map<String, String> copiedWorkloadFiles = Optional.fromNullable(entity.getConfig(YCSBNode.INSTALL_FILES)).or(Maps.<String, String>newHashMap());
 
         ImmutableList.Builder<String> commandsBuilder = ImmutableList.<String>builder()
@@ -75,6 +97,11 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .add(format("tar xvfz %s -C %s --strip-components 1", saveAs, ycsbHomeDir))
                 .add(format("mkdir -p %s/logs", ycsbHomeDir));
 
+        if (mySqlClientInstalled) {
+            commandsBuilder.add(format("cp %s/%s .", getInstallDir(), mySqlClientSaveAs))
+                    .add(format("tar xvfz %s -C %s", mySqlClientSaveAs, ycsbHomeDir));
+
+        }
         //if workload files uploaded copy them to the workloads folder.
         if (!copiedWorkloadFiles.isEmpty()) {
             for (String workloadFile : copiedWorkloadFiles.values()) {
@@ -200,7 +227,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
-        Map<String, String> props = getProperties();
+        Map<String, Object> props = getProperties();
 
         StringBuilder loadcmd = new StringBuilder(format("%s load %s -s -target %s -threads %s -P %s/%s",
                 ycsbCommand, dbName, target, threads, workloadDir, workload));
@@ -222,7 +249,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
-        Map<String, String> props = getProperties();
+        Map<String, Object> props = getProperties();
 
         StringBuilder runcmd = new StringBuilder(format("%s run %s -s -target %s -threads %s -P %s/%s",
                 ycsbCommand, dbName, target, threads, workloadDir, workload));
@@ -258,7 +285,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         return entity.getAttribute(YCSBNode.YCSB_LOGS_IDENTIFIER);
     }
 
-    private Map<String, String> getProperties() {
-        return entity.getConfig(YCSBNode.YCSB_PROPERTIES);
+    private Map<String, Object> getProperties() {
+        return Optional.fromNullable(entity.getConfig(YCSBNode.YCSB_PROPERTIES)).or(Maps.<String, Object>newHashMap());
     }
 }
