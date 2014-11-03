@@ -12,7 +12,6 @@ services:
   name: YCSB MySQL benchmarking Node
   brooklyn.config:
     dbToBenchmark: "jdbc"
-    dbHostnamesString: $brooklyn:component("db").attributeWhenReady("host.name")
     ycsbProperties:
       db.driver: "com.mysql.jdbc.Driver"
       db.url: $brooklyn:formatString("jdbc:%s%s",component("db").attributeWhenReady("datastore.url"), "ycsb")

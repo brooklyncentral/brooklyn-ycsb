@@ -4,10 +4,7 @@ import static java.lang.String.format;
 
 import java.util.List;
 import java.util.Map;
-import java.util.StringTokenizer;
 import java.util.concurrent.atomic.AtomicLong;
-
-import javax.annotation.Nullable;
 
 import com.beust.jcommander.internal.Maps;
 import com.google.common.base.Function;
@@ -62,9 +59,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .add(BashCommands.INSTALL_TAR)
                 .addAll(BashCommands.commandsToDownloadUrlsAs(urls, saveAs));
 
-
         //download the connectorJ (MySQL JDBC client) if MySQL is being benchmarked.
-        if (entity.getConfig(YCSBNode.DB_TO_BENCHMARK).equals("jdbc") &&
+        if (getDbName().equals("jdbc") &&
                 entity.getConfig(YCSBNode.YCSB_PROPERTIES).containsKey("db.driver") &&
                 String.valueOf(entity.getConfig(YCSBNode.YCSB_PROPERTIES).get("db.driver")).equals("com.mysql.jdbc.Driver")) {
             String mySqlClientVersion = entity.getConfig(YCSBNode.MSYQL_CLIENT_VERSION);
@@ -117,7 +113,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         workloadDir = Os.mergePaths(ycsbHomeDir, "workloads");
         logsDir = Os.mergePaths(ycsbHomeDir, "logs");
         entity.setAttribute(YCSBNode.YCSB_LOGS_PATH, logsDir);
-
     }
 
     @Override
@@ -127,50 +122,37 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .execute();
     }
 
-    public String getDBHostnames() {
-        Optional<List<String>> myHostnamesList = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_LIST));
-        Optional<String> myHostnamesString = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_STRING));
+    private String fetchDBHostnames(List<String> hostnamesList) {
 
-        //remove port section from the hostname
-        if (myHostnamesList.isPresent()) {
+        return Strings.join(Lists.newArrayList(Iterables.transform(hostnamesList, new Function<String, String>() {
+            @Override
+            public String apply(String s) {
 
-            List<String> dbHostnamesList = myHostnamesList.get();
-            return Strings.join(Lists.newArrayList(Iterables.transform(dbHostnamesList, new Function<String, String>() {
-
-                @Nullable
-                @Override
-                public String apply(@Nullable String s) {
-
-                    if (s.contains(":")) {
-                        int portIndex = s.indexOf(":");
-                        return s.substring(0, portIndex);
-                    } else
-                        return s;
+                //remove http prefix
+                if (s.contains("http://") || s.contains("http://")) {
+                    s = s.replaceAll("(http://|http://www\\.|https://|https://www\\.|www\\.)", "");
                 }
-            })), ",");
-        } else {
-            if (myHostnamesString.isPresent()) {
-                String dbHostnamesString = myHostnamesString.get();
-
-                if (dbHostnamesString.contains(":")) {
-                    StringTokenizer tokenizer = new StringTokenizer(dbHostnamesString, ",");
-                    StringBuilder hostsWithoutPorts = new StringBuilder();
-
-                    while (tokenizer.hasMoreTokens()) {
-                        String singleHost = tokenizer.nextToken();
-                        if (tokenizer.hasMoreTokens()) {
-                            hostsWithoutPorts.append(singleHost.substring(0, singleHost.lastIndexOf(":")) + ",");
-                        } else {
-                            hostsWithoutPorts.append(singleHost.substring(0, singleHost.lastIndexOf(":")));
-                        }
-                    }
-                    return hostsWithoutPorts.toString();
-                } else {
-                    return dbHostnamesString;
+                //remove port
+                if (s.contains(":")) {
+                    s = s.substring(0, s.lastIndexOf(":"));
                 }
+                return s;
             }
-            return "";
+        })), ",");
+    }
+
+    private String getDbHostnames() {
+        String hostnamesString = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_STRING)).orNull();
+        List<String> hostnamesList = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_LIST)).orNull();
+
+        if (hostnamesString != null) {
+            return fetchDBHostnames(Lists.newArrayList(hostnamesString.split(",")));
         }
+
+        if (hostnamesList != null && !hostnamesList.isEmpty()) {
+            return fetchDBHostnames(hostnamesList);
+        }
+        return null;
     }
 
     @Override
@@ -179,8 +161,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     }
 
     @Override
-    public void stop() {
-    }
+    public void stop() {}
 
     @Override
     public void kill() {
@@ -222,8 +203,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     private String getLoadCmd(String workload) {
 
-        //String coreWorkloadClass = getEntity().getMainClass();
-        String hostnames = getDBHostnames();
+        String hostnames = getDbHostnames();
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
@@ -238,14 +218,16 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             }
         }
 
-        loadcmd.append(format(" -p hosts=%s", hostnames));
+        if (hostnames != null) {
+            loadcmd.append(format(" -p hosts=%s", fetchDBHostnames(Lists.newArrayList(hostnames.split(",")))));
+        }
 
         return loadcmd.toString();
     }
 
     private String getRunCmd(String workload) {
 
-        String hostnames = getDBHostnames();
+        String hostnames = getDbHostnames();
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
@@ -260,13 +242,11 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             }
         }
 
-        runcmd.append(format(" -p hosts=%s", hostnames));
+        if (hostnames != null) {
+            runcmd.append(format(" -p hosts=%s", hostnames));
+        }
 
         return runcmd.toString();
-    }
-
-    private String getDB() {
-        return entity.getConfig(YCSBNode.DB_TO_BENCHMARK);
     }
 
     private Integer getThreads() {

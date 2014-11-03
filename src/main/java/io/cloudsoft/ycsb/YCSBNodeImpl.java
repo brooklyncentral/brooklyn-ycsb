@@ -1,17 +1,14 @@
 package io.cloudsoft.ycsb;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 import brooklyn.entity.basic.SoftwareProcessImpl;
 import brooklyn.event.feed.ConfigToAttributes;
-import brooklyn.location.Location;
 import brooklyn.util.os.Os;
 
 public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
@@ -45,16 +42,21 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
 
     @Override
     protected void preStart() {
-        Preconditions.checkNotNull(getConfig(DB_TO_BENCHMARK),"The DB type to benchmark is not specified");
+        Preconditions.checkNotNull(getDbName(), "The DB type to benchmark is not specified");
 
-        if (getConfig(DB_TO_BENCHMARK).equals("jdbc"))
-        {
-            Map<String,Object> props = getConfig(YCSB_PROPERTIES);
-            Preconditions.checkArgument(!props.isEmpty(),"YCSB JDBC properties should be set when benchmarking through JDBC");
+        if (getDbName().equals("jdbc")) {
+            Map<String, Object> props = getProps();
+            Preconditions.checkArgument(!props.isEmpty(), "YCSB JDBC properties should be set when benchmarking through JDBC");
             Preconditions.checkArgument(props.containsKey("db.driver"));
             Preconditions.checkArgument(props.containsKey("db.url"));
             Preconditions.checkArgument(props.containsKey("db.user"));
             Preconditions.checkArgument(props.containsKey("db.passwd"));
+        }
+
+        if (getDbName().equals("mongodb")) {
+            Map<String, Object> props = getProps();
+            Preconditions.checkArgument(!props.isEmpty(), "YCSB MongoDb properties should be set when benchmarking MongoDB");
+            Preconditions.checkArgument(props.containsKey("mongodb.url"));
         }
     }
 
@@ -65,30 +67,29 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
     }
 
     @Override
-    protected void doStart(Collection<? extends Location> locations) {
-        super.doStart(locations);
-
+    protected void postStart() {
+        super.postStart();
         ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_LIST);
         ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_STRING);
     }
 
     @Override
     public void runWorkload(String workload) {
-        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() || Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
-            YCSBNodeDriver driver = getDriver();
-            driver.runWorkload(workload);
-        } else {
-            throw new IllegalArgumentException("DB Hostnames to benchmark are not ready");
-        }
+        YCSBNodeDriver driver = getDriver();
+        driver.runWorkload(workload);
     }
 
     @Override
     public void loadWorkload(String workload) {
-        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() || Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
-            YCSBNodeDriver driver = getDriver();
-            driver.loadWorkload(workload);
-        } else {
-            throw new IllegalArgumentException("DB Hostnames to benchmark are not ready");
-        }
+        YCSBNodeDriver driver = getDriver();
+        driver.loadWorkload(workload);
+    }
+
+    private String getDbName() {
+        return getConfig(DB_TO_BENCHMARK);
+    }
+
+    private Map<String, Object> getProps() {
+        return getConfig(YCSB_PROPERTIES);
     }
 }

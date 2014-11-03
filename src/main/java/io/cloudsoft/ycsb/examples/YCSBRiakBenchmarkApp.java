@@ -22,7 +22,7 @@ import brooklyn.util.CommandLineUtil;
 import io.cloudsoft.ycsb.YCSBNode;
 
 @Catalog(name = "YCSB Riak Benchmark", description = "A Blueprint to Benchmark a Riak Cluster using YCSB")
-public class YCSBRiakBenchmark extends AbstractApplication {
+public class YCSBRiakBenchmarkApp extends AbstractApplication {
 
     @CatalogConfig(label = "Riak Ring Size")
     public static final ConfigKey<Integer> RIAK_RING_SIZE = ConfigKeys.newConfigKey(
@@ -57,7 +57,7 @@ public class YCSBRiakBenchmark extends AbstractApplication {
         String location = CommandLineUtil.getCommandLineOption(args, "--location", DEFAULT_LOCATION_SPEC);
 
         BrooklynLauncher launcher = BrooklynLauncher.newInstance()
-                .application(EntitySpec.create(StartableApplication.class, YCSBRiakBenchmark.class)
+                .application(EntitySpec.create(StartableApplication.class, YCSBRiakBenchmarkApp.class)
                         .displayName("YCSB Riak Benchmark Test"))
                 .webconsolePort(port)
                 .location(location)

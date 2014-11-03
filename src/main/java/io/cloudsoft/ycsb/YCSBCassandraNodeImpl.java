@@ -2,7 +2,6 @@ package io.cloudsoft.ycsb;
 
 import static java.lang.String.format;
 
-import java.util.Collection;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -19,15 +18,13 @@ import brooklyn.entity.basic.Entities;
 import brooklyn.entity.nosql.cassandra.CassandraDatacenter;
 import brooklyn.entity.nosql.cassandra.CassandraNode;
 import brooklyn.event.basic.DependentConfiguration;
-import brooklyn.location.Location;
 
 public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandraNode {
     private static final Logger log = LoggerFactory.getLogger(YCSBCassandraNodeImpl.class);
 
     @Override
-    protected void doStart(Collection<? extends Location> locations) {
-        super.doStart(locations);
-
+    protected void postStart() {
+        super.postStart();
         if (Optional.fromNullable(getConfig(YCSBCassandraNode.CASSANDRA_DATACENTER)).isPresent()) {
             CassandraDatacenter cluster = getConfig(CASSANDRA_DATACENTER);
             DependentConfiguration.waitInTaskForAttributeReady(cluster, Attributes.SERVICE_UP, Predicates.equalTo(Boolean.TRUE));
@@ -51,9 +48,28 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
                         .publishing(DB_HOSTNAMES_LIST)
                         .build());
             }
-
         } else {
             throw new IllegalStateException(format("\"cassandraDatacenter\" configuration should be set to run the benchmark on node id:%s", getId()));
+        }
+    }
+
+    @Override
+    public void runWorkload(String workload) {
+        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() ||
+                Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
+            super.runWorkload(workload);
+        } else {
+            throw new IllegalStateException("Cassandra Nodes hostnames to benchmark are not present");
+        }
+    }
+
+    @Override
+    public void loadWorkload(String workload) {
+        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() ||
+                Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
+            super.loadWorkload(workload);
+        } else {
+            throw new IllegalStateException("Cassandra Nodes hostnames to benchmark are not present");
         }
     }
 
