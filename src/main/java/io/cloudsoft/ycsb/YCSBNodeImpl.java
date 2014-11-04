@@ -53,11 +53,6 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
             Preconditions.checkArgument(props.containsKey("db.passwd"));
         }
 
-        if (getDbName().equals("mongodb")) {
-            Map<String, Object> props = getProps();
-            Preconditions.checkArgument(!props.isEmpty(), "YCSB MongoDb properties should be set when benchmarking MongoDB");
-            Preconditions.checkArgument(props.containsKey("mongodb.url"));
-        }
     }
 
     @Override

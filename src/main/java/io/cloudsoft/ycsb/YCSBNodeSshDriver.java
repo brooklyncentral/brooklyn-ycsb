@@ -74,7 +74,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             mySqlClientInstalled = true;
         }
 
-
         newScript(INSTALLING)
                 .body.append(cmdsBuilder.build())
                 .execute();

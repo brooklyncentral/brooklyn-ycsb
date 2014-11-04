@@ -1,4 +1,4 @@
-name: MongoDb Replica Set benchmarking with YCSB
+name: MongoDb Sharded Deployment benchmarking with YCSB
 
 location: jclouds:softlayer:ams01
 
@@ -12,25 +12,11 @@ services:
     configClusterSize: 1
     shardReplicaSetSize: 1
 
-- serviceType: brooklyn.entity.nosql.mongodb.MongoDBClient
-  name: MongoDB Javascript Client
-  id: client
-  brooklyn.config:
-    shardedDeployment: $brooklyn:component("shardeddeployment")
-#    scripts:
-#      insert: classpath://mongo-create-env.js
-    scripts:
-      insert: classpath://mongo-product-insert.js
-    startupJsScripts: # These will be run in order on startup
-      - insert
-
-- serviceType: io.cloudsoft.ycsb.YCSBNode
+- serviceType: io.cloudsoft.ycsb.YCSBMongoDbNode
   name: YCSB MongoDb Sharded Deployment Benchmarking Node
   brooklyn.config:
-    dbToBenchmark: "mongodb"
+    mongoDbDeployment: $brooklyn:component("shardeddeployment")
     ycsbProperties:
       recordcount: 100000
       measurementtype: timeseries
-      mongodb.database: ycsb
-      mongodb.url: $brooklyn:formatString("mongodb://%s:%s",component("client").attributeWhenReady("host.address"),component("client").attributeWhenReady("mongodb.server.port"))
     workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]

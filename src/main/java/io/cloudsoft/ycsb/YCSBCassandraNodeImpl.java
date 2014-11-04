@@ -75,8 +75,7 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
 
     @Override
     public void init() {
-        super.init();
         setConfig(DB_TO_BENCHMARK, "cassandra-10");
+        super.init();
     }
-
 }
