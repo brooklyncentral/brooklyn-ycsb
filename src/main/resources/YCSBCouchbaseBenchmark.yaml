@@ -1,0 +1,20 @@
+name: Couchbase Cluster benchmarking with YCSB
+
+location: jclouds:softlayer:ams01
+
+services:
+- serviceType: brooklyn.entity.nosql.couchbase.CouchbaseCluster
+  id: cluster
+  name: Couchbase Cluster
+  initialSize: 2
+  adminUsername: Administrator
+  adminPassword: Password
+  createBuckets:
+  - bucket: default
+    bucket-port: 11211
+
+- serviceType: io.cloudsoft.ycsb.YCSBCouchbaseNode
+  name: YCSB Couchbase benchmarking Node
+  brooklyn.config:
+    couchbaseCluster: $brooklyn:component("cluster")
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]

@@ -1,5 +1,7 @@
 package io.cloudsoft.ycsb;
 
+import static java.lang.String.format;
+
 import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
@@ -50,6 +52,8 @@ public class YCSBMongoDbNodeImpl extends YCSBNodeImpl implements YCSBMongoDbNode
                     })
                     .publishing(YCSBMongoDbNode.MONGO_DB_ROUTER_URL)
                     .build());
+        } else {
+            throw new IllegalStateException(format("MongoDb Deployment configuration should be set to run the benchmark on node id:%s", getId()));
         }
     }
 

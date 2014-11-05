@@ -24,6 +24,7 @@ import brooklyn.location.basic.SshMachineLocation;
 import brooklyn.util.os.Os;
 import brooklyn.util.ssh.BashCommands;
 import brooklyn.util.text.Strings;
+import scala.actors.threadpool.Arrays;
 
 public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements YCSBNodeDriver {
 
@@ -121,7 +122,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .execute();
     }
 
-    private String fetchDBHostnames(List<String> hostnamesList) {
+    @Override
+    public String fetchDBHostnames(List<String> hostnamesList) {
 
         return Strings.join(Lists.newArrayList(Iterables.transform(hostnamesList, new Function<String, String>() {
             @Override
@@ -140,12 +142,12 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         })), ",");
     }
 
-    private String getDbHostnames() {
+    public String getDbHostnames() {
         String hostnamesString = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_STRING)).orNull();
         List<String> hostnamesList = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_LIST)).orNull();
 
         if (hostnamesString != null) {
-            return fetchDBHostnames(Lists.newArrayList(hostnamesString.split(",")));
+            return fetchDBHostnames(Arrays.asList(hostnamesString.split(",")));
         }
 
         if (hostnamesList != null && !hostnamesList.isEmpty()) {
@@ -160,7 +162,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     }
 
     @Override
-    public void stop() {}
+    public void stop() {
+    }
 
     @Override
     public void kill() {

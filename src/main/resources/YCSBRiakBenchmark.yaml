@@ -11,14 +11,8 @@ services:
     provisioning.properties:
       osFamily: centos
 
-- serviceType: io.cloudsoft.ycsb.YCSBNode
-  name: YCSB Riak Benchmarking Node
+- serviceType: io.cloudsoft.ycsb.YCSBRiakNode
+  name: YCSB Riak benchmarking Node
   brooklyn.config:
-    dbToBenchmark: "riak"
-    downloadUrl: "http://developers.cloudsoftcorp.com/brooklyn/repository/YcsbNode/0.1.4/ycsb-0.1.4-riak-driver.tar.gz"
-    dbHostnamesString: $brooklyn:component("riakCluster").attributeWhenReady("riak.cluster.nodeList")
-    ycsbProperties:
-      recordcount: 100000
-      measurementtype: timeseries
+    riakCluster: $brooklyn:component("riakCluster")
     workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]
-
