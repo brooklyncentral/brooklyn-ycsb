@@ -10,6 +10,6 @@ public interface YCSBNodeDriver extends SoftwareProcessDriver {
 
     void loadWorkload(String workload);
 
-    String fetchDBHostnames(List<String> hostnamesList);
+    String getHostnamesString(List<String> hostnamesList);
 
 }

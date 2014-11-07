@@ -2,6 +2,7 @@ package io.cloudsoft.ycsb;
 
 import static java.lang.String.format;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -24,16 +25,8 @@ import brooklyn.location.basic.SshMachineLocation;
 import brooklyn.util.os.Os;
 import brooklyn.util.ssh.BashCommands;
 import brooklyn.util.text.Strings;
-import scala.actors.threadpool.Arrays;
 
 public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements YCSBNodeDriver {
-
-    public String ycsbCommand = "";
-    public String workloadDir = "";
-    public String logsDir = "";
-    private boolean mySqlClientInstalled = false;
-    private String saveAs = null;
-    private String mySqlClientSaveAs = null;
 
     public YCSBNodeSshDriver(SoftwareProcessImpl entity, SshMachineLocation machine) {
         super(entity, machine);
@@ -54,25 +47,22 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     @Override
     public void install() {
         List<String> urls = resolver.getTargets();
-        saveAs = resolver.getFilename();
+        String saveAs = resolver.getFilename();
 
         ImmutableList.Builder<String> cmdsBuilder = ImmutableList.<String>builder()
                 .add(BashCommands.INSTALL_TAR)
                 .addAll(BashCommands.commandsToDownloadUrlsAs(urls, saveAs));
 
         //download the connectorJ (MySQL JDBC client) if MySQL is being benchmarked.
-        if (getDbName().equals("jdbc") &&
-                entity.getConfig(YCSBNode.YCSB_PROPERTIES).containsKey("db.driver") &&
-                String.valueOf(entity.getConfig(YCSBNode.YCSB_PROPERTIES).get("db.driver")).equals("com.mysql.jdbc.Driver")) {
+        if (isBenchmarkingMySql()) {
             String mySqlClientVersion = entity.getConfig(YCSBNode.MSYQL_CLIENT_VERSION);
 
             DownloadResolver mySqlClientResolver = ((EntityInternal) entity).getManagementContext().getEntityDownloadsManager()
                     .newDownloader(this, "mysqlClient", ImmutableMap.of("addonversion", mySqlClientVersion));
 
             List<String> mySqlClientUrls = mySqlClientResolver.getTargets();
-            mySqlClientSaveAs = mySqlClientResolver.getFilename();
+            String mySqlClientSaveAs = mySqlClientResolver.getFilename();
             cmdsBuilder.addAll(BashCommands.commandsToDownloadUrlsAs(mySqlClientUrls, mySqlClientSaveAs));
-            mySqlClientInstalled = true;
         }
 
         newScript(INSTALLING)
@@ -84,6 +74,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     public void customize() {
 
         String ycsbHomeDir = Os.mergePaths(getRunDir(), "ycsb-" + getVersion());
+        String saveAs = resolver.getFilename();
 
         Map<String, String> copiedWorkloadFiles = Optional.fromNullable(entity.getConfig(YCSBNode.INSTALL_FILES)).or(Maps.<String, String>newHashMap());
 
@@ -93,10 +84,15 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .add(format("tar xvfz %s -C %s --strip-components 1", saveAs, ycsbHomeDir))
                 .add(format("mkdir -p %s/logs", ycsbHomeDir));
 
-        if (mySqlClientInstalled) {
+        if (isBenchmarkingMySql()) {
+            String mySqlClientVersion = entity.getConfig(YCSBNode.MSYQL_CLIENT_VERSION);
+            DownloadResolver mySqlClientResolver = ((EntityInternal) entity).getManagementContext().getEntityDownloadsManager()
+                    .newDownloader(this, "mysqlClient", ImmutableMap.of("addonversion", mySqlClientVersion));
+
+            String mySqlClientSaveAs = mySqlClientResolver.getFilename();
+
             commandsBuilder.add(format("cp %s/%s .", getInstallDir(), mySqlClientSaveAs))
                     .add(format("tar xvfz %s -C %s", mySqlClientSaveAs, ycsbHomeDir));
-
         }
         //if workload files uploaded copy them to the workloads folder.
         if (!copiedWorkloadFiles.isEmpty()) {
@@ -109,10 +105,9 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 .body.append(commandsBuilder.build())
                 .execute();
 
-        ycsbCommand = Os.mergePaths(ycsbHomeDir, "bin", "ycsb");
-        workloadDir = Os.mergePaths(ycsbHomeDir, "workloads");
-        logsDir = Os.mergePaths(ycsbHomeDir, "logs");
-        entity.setAttribute(YCSBNode.YCSB_LOGS_PATH, logsDir);
+        entity.setAttribute(YCSBNode.YCSB_COMMAND, Os.mergePaths(ycsbHomeDir, "bin", "ycsb"));
+        entity.setAttribute(YCSBNode.YCSB_LOGS_PATH, Os.mergePaths(ycsbHomeDir, "logs"));
+        entity.setAttribute(YCSBNode.YCSB_WORKLOADS_PATH, Os.mergePaths(ycsbHomeDir, "workloads"));
     }
 
     @Override
@@ -123,15 +118,14 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
     }
 
     @Override
-    public String fetchDBHostnames(List<String> hostnamesList) {
+    public String getHostnamesString(List<String> hostnamesList) {
 
         return Strings.join(Lists.newArrayList(Iterables.transform(hostnamesList, new Function<String, String>() {
             @Override
             public String apply(String s) {
-
-                //remove http prefix
-                if (s.contains("http://") || s.contains("http://")) {
-                    s = s.replaceAll("(http://|http://www\\.|https://|https://www\\.|www\\.)", "");
+                //if wellformed URL return only the hostname
+                if (s.contains("http://") || s.contains("https://")) {
+                    return URI.create(s).getHost();
                 }
                 //remove port
                 if (s.contains(":")) {
@@ -140,20 +134,6 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
                 return s;
             }
         })), ",");
-    }
-
-    public String getDbHostnames() {
-        String hostnamesString = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_STRING)).orNull();
-        List<String> hostnamesList = Optional.fromNullable(entity.getAttribute(YCSBNode.DB_HOSTNAMES_LIST)).orNull();
-
-        if (hostnamesString != null) {
-            return fetchDBHostnames(Arrays.asList(hostnamesString.split(",")));
-        }
-
-        if (hostnamesList != null && !hostnamesList.isEmpty()) {
-            return fetchDBHostnames(hostnamesList);
-        }
-        return null;
     }
 
     @Override
@@ -186,7 +166,7 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             long logId = getLogId().getAndIncrement();
 
             newScript("loadingWorkload")
-                    .body.append(format("%s | tee %s/load-%s-%s.out", getLoadCmd(workload), logsDir, logId, workload))
+                    .body.append(format("%s | tee %s/load-%s-%s.out", getLoadCmd(workload), getLogsDir(), logId, workload))
                     .execute();
         }
     }
@@ -198,21 +178,21 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             long logId = getLogId().getAndIncrement();
 
             newScript("runningWorkload")
-                    .body.append(format("%s | tee %s/run-%s-%s.out", getRunCmd(workload), logsDir, logId, workload))
+                    .body.append(format("%s | tee %s/run-%s-%s.out", getRunCmd(workload), getLogsDir(), logId, workload))
                     .execute();
         }
     }
 
     private String getLoadCmd(String workload) {
 
-        String hostnames = getDbHostnames();
+
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
         Map<String, Object> props = getProperties();
 
         StringBuilder loadcmd = new StringBuilder(format("%s load %s -s -target %s -threads %s -P %s/%s",
-                ycsbCommand, dbName, target, threads, workloadDir, workload));
+                getYcsbCmd(), dbName, target, threads, getWorkloadsDir(), workload));
 
         if (!props.isEmpty()) {
             for (String property : props.keySet()) {
@@ -220,8 +200,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             }
         }
 
-        if (hostnames != null) {
-            loadcmd.append(format(" -p hosts=%s", fetchDBHostnames(Lists.newArrayList(hostnames.split(",")))));
+        if (getHostnames() != null) {
+            loadcmd.append(format(" -p hosts=%s", getHostnamesString(getHostnames())));
         }
 
         return loadcmd.toString();
@@ -229,14 +209,13 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
 
     private String getRunCmd(String workload) {
 
-        String hostnames = getDbHostnames();
         String dbName = getDbName();
         Integer target = getTarget();
         Integer threads = getThreads();
         Map<String, Object> props = getProperties();
 
         StringBuilder runcmd = new StringBuilder(format("%s run %s -s -target %s -threads %s -P %s/%s",
-                ycsbCommand, dbName, target, threads, workloadDir, workload));
+                getYcsbCmd(), dbName, target, threads, getWorkloadsDir(), workload));
 
         if (!props.isEmpty()) {
             for (String property : props.keySet()) {
@@ -244,8 +223,8 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
             }
         }
 
-        if (hostnames != null) {
-            runcmd.append(format(" -p hosts=%s", hostnames));
+        if (getHostnames() != null) {
+            runcmd.append(format(" -p hosts=%s", getHostnamesString(getHostnames())));
         }
 
         return runcmd.toString();
@@ -263,11 +242,33 @@ public class YCSBNodeSshDriver extends JavaSoftwareProcessSshDriver implements Y
         return entity.getConfig(YCSBNode.DB_TO_BENCHMARK);
     }
 
+    private List<String> getHostnames() {
+        return entity.getAttribute(YCSBNode.HOSTNAMES);
+    }
+
     private AtomicLong getLogId() {
         return entity.getAttribute(YCSBNode.YCSB_LOGS_IDENTIFIER);
     }
 
+    private String getLogsDir() {
+        return entity.getAttribute(YCSBNode.YCSB_LOGS_PATH);
+    }
+
+    private String getWorkloadsDir() {
+        return entity.getAttribute(YCSBNode.YCSB_WORKLOADS_PATH);
+    }
+
+    private String getYcsbCmd() {
+        return entity.getAttribute(YCSBNode.YCSB_COMMAND);
+    }
+
     private Map<String, Object> getProperties() {
         return Optional.fromNullable(entity.getConfig(YCSBNode.YCSB_PROPERTIES)).or(Maps.<String, Object>newHashMap());
+    }
+
+    private Boolean isBenchmarkingMySql() {
+        return getDbName().equals("jdbc") &&
+                entity.getConfig(YCSBNode.YCSB_PROPERTIES).containsKey("db.driver") &&
+                String.valueOf(entity.getConfig(YCSBNode.YCSB_PROPERTIES).get("db.driver")).equals("com.mysql.jdbc.Driver");
     }
 }

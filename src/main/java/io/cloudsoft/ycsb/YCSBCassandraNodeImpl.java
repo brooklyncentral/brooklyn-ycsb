@@ -27,7 +27,7 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
         super.postStart();
         if (Optional.fromNullable(getConfig(YCSBCassandraNode.CASSANDRA_DATACENTER)).isPresent()) {
             CassandraDatacenter cluster = getConfig(CASSANDRA_DATACENTER);
-            DependentConfiguration.waitInTaskForAttributeReady(cluster, Attributes.SERVICE_UP, Predicates.equalTo(Boolean.TRUE));
+            Entities.waitForServiceUp(cluster);
 
             CassandraNode anyNode = (CassandraNode) Iterables.find(cluster.getMembers(), Predicates.instanceOf(CassandraNode.class));
             log.info("Creating keyspace 'usertable' with column family 'data' on Node {}", anyNode.getId());
@@ -39,15 +39,15 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
 
             setAttribute(YCSBCassandraNode.INIT_SCRIPT_EXECUTED, true);
 
-            if (getConfig(DB_HOSTNAMES_LIST) == null) {
+
                 addEnricher(Enrichers.builder()
                         .transforming(CassandraDatacenter.CASSANDRA_CLUSTER_NODES)
                         .computing(Functions.<List<String>>identity())
                         .suppressDuplicates(true)
                         .from(cluster)
-                        .publishing(DB_HOSTNAMES_LIST)
+                        .publishing(HOSTNAMES)
                         .build());
-            }
+
         } else {
             throw new IllegalStateException(format("\"cassandraDatacenter\" configuration should be set to run the benchmark on node id:%s", getId()));
         }
@@ -55,8 +55,7 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
 
     @Override
     public void runWorkload(String workload) {
-        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() ||
-                Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
+        if (Optional.fromNullable(getAttribute(HOSTNAMES)).isPresent()){
             super.runWorkload(workload);
         } else {
             throw new IllegalStateException("Cassandra Nodes hostnames to benchmark are not present");
@@ -65,8 +64,7 @@ public class YCSBCassandraNodeImpl extends YCSBNodeImpl implements YCSBCassandra
 
     @Override
     public void loadWorkload(String workload) {
-        if (Optional.fromNullable(getAttribute(DB_HOSTNAMES_LIST)).isPresent() ||
-                Optional.fromNullable(getAttribute(DB_HOSTNAMES_STRING)).isPresent()) {
+        if (Optional.fromNullable(getAttribute(HOSTNAMES)).isPresent()){
             super.loadWorkload(workload);
         } else {
             throw new IllegalStateException("Cassandra Nodes hostnames to benchmark are not present");

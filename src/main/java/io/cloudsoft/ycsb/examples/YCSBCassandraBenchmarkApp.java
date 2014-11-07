@@ -81,7 +81,7 @@ public class YCSBCassandraBenchmarkApp extends AbstractApplication {
 
         addChild(EntitySpec.create(YCSBNode.class)
                 .configure(YCSBNode.DB_TO_BENCHMARK, "cassandra-10")
-                .configure(YCSBNode.DB_HOSTNAMES_LIST, DependentConfiguration.attributeWhenReady(cassandraCluster, CassandraDatacenter.CASSANDRA_CLUSTER_NODES))
+                .configure(YCSBNode.HOSTNAMES_CONFIG_LIST, DependentConfiguration.attributeWhenReady(cassandraCluster, CassandraDatacenter.CASSANDRA_CLUSTER_NODES))
                 .configure(YCSBNode.YCSB_PROPERTIES, props)
                 .configure(YCSBNode.WORKLOAD_FILES, workloadFiles));
     }

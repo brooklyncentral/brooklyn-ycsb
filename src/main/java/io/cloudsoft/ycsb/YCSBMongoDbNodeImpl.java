@@ -6,10 +6,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
-import com.google.common.base.Predicates;
 
 import brooklyn.enricher.Enrichers;
-import brooklyn.entity.basic.Attributes;
+import brooklyn.entity.basic.Entities;
 import brooklyn.entity.nosql.mongodb.sharding.MongoDBRouter;
 import brooklyn.entity.nosql.mongodb.sharding.MongoDBRouterCluster;
 import brooklyn.entity.nosql.mongodb.sharding.MongoDBShardedDeployment;
@@ -34,7 +33,7 @@ public class YCSBMongoDbNodeImpl extends YCSBNodeImpl implements YCSBMongoDbNode
 
         if (Optional.fromNullable(MONGO_DB_DEPLOYMENT).isPresent()) {
             MongoDBShardedDeployment mongoDeployment = getConfig(MONGO_DB_DEPLOYMENT);
-            DependentConfiguration.waitInTaskForAttributeReady(mongoDeployment, Attributes.SERVICE_UP, Predicates.equalTo(Boolean.TRUE));
+            Entities.waitForServiceUp(mongoDeployment);
 
             //get the mongo url from the router cluster (may use a replica set later on)
             addEnricher(Enrichers.builder()

@@ -3,6 +3,7 @@ package io.cloudsoft.ycsb;
 import static java.lang.String.format;
 
 import java.util.Arrays;
+import java.util.List;
 
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
@@ -36,16 +37,16 @@ public class YCSBRiakNodeImpl extends YCSBNodeImpl implements YCSBRiakNode {
 
             addEnricher(Enrichers.builder()
                     .transforming(RiakCluster.NODE_LIST)
-                    .computing(new Function<String, String>() {
+                    .computing(new Function<String, List<String>>() {
 
                         @Override
-                        public String apply(String nodeList) {
-                            return getDriver().fetchDBHostnames(Arrays.asList(nodeList.split(",")));
+                        public List<String> apply(String nodeList) {
+                            return Arrays.asList(nodeList.split(","));
                         }
                     })
                     .suppressDuplicates(true)
                     .from(cluster)
-                    .publishing(DB_HOSTNAMES_STRING)
+                    .publishing(HOSTNAMES)
                     .build());
         } else {
             throw new IllegalStateException(format("Couchbase Cluster configuration should be set to run the benchmark on node id:%s", getId()));

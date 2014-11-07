@@ -8,10 +8,9 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
 import com.google.common.base.Optional;
-import com.google.common.base.Predicates;
 
 import brooklyn.enricher.Enrichers;
-import brooklyn.entity.basic.Attributes;
+import brooklyn.entity.basic.Entities;
 import brooklyn.entity.nosql.couchbase.CouchbaseCluster;
 import brooklyn.event.basic.DependentConfiguration;
 
@@ -36,7 +35,7 @@ public class YCSBCouchbaseNodeImpl extends YCSBNodeImpl implements YCSBCouchbase
 
         if (Optional.fromNullable(COUCHBASE_CLUSTER).isPresent()) {
             CouchbaseCluster cluster = getConfig(COUCHBASE_CLUSTER);
-            DependentConfiguration.waitInTaskForAttributeReady(cluster, Attributes.SERVICE_UP, Predicates.equalTo(Boolean.TRUE));
+            Entities.waitForServiceUp(cluster);
 
             addEnricher(Enrichers.builder()
                     .transforming(CouchbaseCluster.COUCHBASE_CLUSTER_UP_NODE_ADDRESSES)
@@ -44,7 +43,7 @@ public class YCSBCouchbaseNodeImpl extends YCSBNodeImpl implements YCSBCouchbase
 
                         @Override
                         public String apply(@Nullable List<String> strings) {
-                            return getDriver().fetchDBHostnames(strings);
+                            return getDriver().getHostnamesString(strings);
                         }
                     })
                     .suppressDuplicates(true)

@@ -14,7 +14,7 @@ public interface YCSBMongoDbNode extends YCSBNode {
     @SetFromFlag("mongoDbDeployment")
     ConfigKey<MongoDBShardedDeployment> MONGO_DB_DEPLOYMENT = ConfigKeys.newConfigKey(MongoDBShardedDeployment.class, "ycsb.mongodb.shardedDeployment", "The MongoDB Deployment to be Benchmarked");
 
-    //    @SetFromFlag("mongoDbUrl")
+//    @SetFromFlag("mongoDbUrl")
 //    ConfigKey<String> MONGO_DB_URL = ConfigKeys.newStringConfigKey("ycsb.mongodb.mongoDbUrl", "The MongoDB Url to be Benchmarked", "mongodb://localhost:27017");
 //
     @SetFromFlag("mongoDbName")

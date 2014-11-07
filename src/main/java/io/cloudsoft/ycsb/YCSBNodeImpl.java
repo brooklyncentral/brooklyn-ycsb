@@ -4,18 +4,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Maps;
 
 import brooklyn.entity.basic.SoftwareProcessImpl;
-import brooklyn.event.feed.ConfigToAttributes;
 import brooklyn.util.os.Os;
+import scala.actors.threadpool.Arrays;
 
 public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
 
     @Override
     public void init() {
         super.init();
+
+        if (Optional.fromNullable(HOSTNAMES_CONFIG_LIST).isPresent()) {
+            setAttribute(HOSTNAMES, getConfig(HOSTNAMES_CONFIG_LIST));
+        } else {
+            if (Optional.fromNullable(HOSTNAMES_CONFIG_STRING).isPresent()) {
+                setAttribute(HOSTNAMES, Arrays.asList(getConfig(HOSTNAMES_CONFIG_STRING).split(",")));
+            }
+        }
 
         List<String> workloadFiles = getConfig(WORKLOAD_FILES);
         if (!workloadFiles.isEmpty()) {
@@ -52,20 +61,12 @@ public class YCSBNodeImpl extends SoftwareProcessImpl implements YCSBNode {
             Preconditions.checkArgument(props.containsKey("db.user"));
             Preconditions.checkArgument(props.containsKey("db.passwd"));
         }
-
     }
 
     @Override
     public void connectSensors() {
         connectedSensors = true;
         connectServiceUpIsRunning();
-    }
-
-    @Override
-    protected void postStart() {
-        super.postStart();
-        ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_LIST);
-        ConfigToAttributes.apply(this, YCSBNode.DB_HOSTNAMES_STRING);
     }
 
     @Override
