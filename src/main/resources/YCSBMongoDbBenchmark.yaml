@@ -1,0 +1,22 @@
+name: MongoDb Sharded Deployment benchmarking with YCSB
+
+location: jclouds:softlayer:ams01
+
+services:
+- serviceType: brooklyn.entity.nosql.mongodb.sharding.MongoDBShardedDeployment
+  id: shardeddeployment
+  name: Mongo Deploy
+  brooklyn.config:
+    initialRouterClusterSize: 1
+    initialShardClusterSize: 1
+    configClusterSize: 1
+    shardReplicaSetSize: 1
+
+- serviceType: io.cloudsoft.ycsb.YCSBMongoDbNode
+  name: YCSB MongoDb Sharded Deployment Benchmarking Node
+  brooklyn.config:
+    mongoDbDeployment: $brooklyn:component("shardeddeployment")
+    ycsbProperties:
+      recordcount: 100000
+      measurementtype: timeseries
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]

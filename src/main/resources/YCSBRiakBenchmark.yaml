@@ -1,0 +1,18 @@
+name: Riak Cluster benchmarking with YCSB
+
+location: jclouds:softlayer:ams01
+
+services:
+- type: brooklyn.entity.nosql.riak.RiakCluster
+  initialSize: 2
+  id: riakCluster
+  brooklyn.config:
+    install.version: 2.0.0
+    provisioning.properties:
+      osFamily: centos
+
+- serviceType: io.cloudsoft.ycsb.YCSBRiakNode
+  name: YCSB Riak benchmarking Node
+  brooklyn.config:
+    riakCluster: $brooklyn:component("riakCluster")
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]

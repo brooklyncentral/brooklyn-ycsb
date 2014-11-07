@@ -1,0 +1,19 @@
+name: Cassandra Cluster benchmarking with YCSB
+
+location: jclouds:softlayer:ams01
+
+services:
+- serviceType: brooklyn.entity.nosql.cassandra.CassandraDatacenter
+  id: cluster
+  name: Cassandra Cluster
+  brooklyn.config:
+    cluster.initial.size: 2
+
+- serviceType: io.cloudsoft.ycsb.YCSBCassandraNode
+  name: YCSB Cassandra Benchmarking Node
+  brooklyn.config:
+    cassandraDatacenter: $brooklyn:component("cluster")
+    ycsbProperties:
+      recordcount: 100000
+      measurementtype: timeseries
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]

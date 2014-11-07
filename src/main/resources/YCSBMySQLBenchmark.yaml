@@ -1,0 +1,20 @@
+name: MySQL jdbc benchmarking with YCSB
+location: jclouds:softlayer:ams01
+
+services:
+- serviceType: brooklyn.entity.database.mysql.MySqlNode
+  id: db
+  name: MySQL DB
+  brooklyn.config:
+    datastore.creation.script.url: classpath://ycsb-mysql-creation-script.sql
+
+- serviceType: io.cloudsoft.ycsb.YCSBNode
+  name: YCSB MySQL benchmarking Node
+  brooklyn.config:
+    dbToBenchmark: "jdbc"
+    ycsbProperties:
+      db.driver: "com.mysql.jdbc.Driver"
+      db.url: $brooklyn:formatString("jdbc:%s%s",component("db").attributeWhenReady("datastore.url"), "ycsb")
+      db.user: "brooklyn"
+      db.passwd: "br00k11n"
+    workloadFiles: ["classpath://workload-testa", "classpath://workload-testb"]
